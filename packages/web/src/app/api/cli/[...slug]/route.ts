@@ -28,7 +28,9 @@ import { ensureUserWorkspace } from '@/server/utils/workspace';
 import { db } from '@/db';
 import {
   actionProposals,
+  userFundingSources,
   userProfilesTable,
+  userSafes,
   users,
   webhookEndpoints,
   workspaces,
@@ -53,6 +55,7 @@ import {
 import { listVaults } from '@/server/earn/vault-registry';
 import { getWorkspaceYieldPolicy } from '@/server/services/yield-policy';
 import { getWorkspaceSafes } from '@/server/earn/multi-chain-safe-manager';
+import { createStarterVirtualAccounts } from '@/server/services/align-starter-accounts';
 import {
   dispatchWebhookEvent,
   logAuditEvent,
@@ -61,6 +64,7 @@ import {
 import { getSpendableBalanceByWorkspace } from '@/server/services/spendable-balance';
 
 export const dynamic = 'force-dynamic';
+const AGENT_LOGIN_KEY_NAME = 'Agent API Login';
 
 type McpTextResult = {
   content: Array<{ type: string; text: string }>;
@@ -90,6 +94,86 @@ function unwrapMcpResult(result: unknown) {
 
 function jsonResponse(payload: unknown, status = 200) {
   return NextResponse.json(payload, { status });
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function extractAddressFromWallet(value: unknown): string | null {
+  const wallet = asRecord(value);
+  if (!wallet) return null;
+  const address = wallet.address;
+  return typeof address === 'string' && isAddress(address) ? address : null;
+}
+
+function extractAddressFromLinkedAccounts(value: unknown): string | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  for (const account of value) {
+    const entry = asRecord(account);
+    if (!entry) continue;
+
+    const address = entry.address;
+    if (typeof address !== 'string' || !isAddress(address)) {
+      continue;
+    }
+
+    const type = entry.type;
+    const chainType = entry.chain_type ?? entry.chainType;
+    if (
+      type === 'wallet' ||
+      chainType === 'ethereum' ||
+      chainType === undefined
+    ) {
+      return address;
+    }
+  }
+
+  return null;
+}
+
+function extractPrivyDestinationAddress(privyUser: unknown): string | null {
+  const root = asRecord(privyUser);
+  if (!root) {
+    return null;
+  }
+
+  const nestedUser = asRecord(root.user);
+
+  return (
+    extractAddressFromWallet(root.wallet) ||
+    extractAddressFromWallet(nestedUser?.wallet) ||
+    extractAddressFromLinkedAccounts(root.linked_accounts) ||
+    extractAddressFromLinkedAccounts(nestedUser?.linked_accounts)
+  );
+}
+
+function parseBeneficiaryType(
+  value: unknown,
+): 'business' | 'individual' | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (value !== 'business' && value !== 'individual') {
+    throw new Error('beneficiary_type must be `business` or `individual`');
+  }
+
+  return value;
 }
 
 function errorResponse(message: string, status = 400) {
@@ -1390,6 +1474,199 @@ export async function POST(
         {
           proposal_id: proposal.id,
           status: proposal.status,
+        },
+        201,
+      );
+    }
+
+    if (slug[0] === 'agent-login') {
+      requireAdmin(request);
+      const body = await request.json();
+
+      const email = normalizeOptionalString(body.email);
+      const phone = normalizeOptionalString(body.phone);
+      const providedPrivyUserId = normalizeOptionalString(body.privy_user_id);
+      const workspaceName = normalizeOptionalString(body.workspace_name);
+      const companyName = normalizeOptionalString(body.company_name);
+      const firstName = normalizeOptionalString(body.first_name);
+      const lastName = normalizeOptionalString(body.last_name);
+      const destinationAddressInput = normalizeOptionalString(
+        body.destination_address,
+      );
+      const beneficiaryType = parseBeneficiaryType(body.beneficiary_type);
+      const createStarterAccounts = body.create_starter_accounts !== false;
+
+      if (!email && !phone && !providedPrivyUserId) {
+        return errorResponse('email, phone, or privy_user_id is required');
+      }
+
+      const linkedAccounts = [] as Array<{
+        type: 'email' | 'phone';
+        address: string;
+      }>;
+      if (email) {
+        linkedAccounts.push({ type: 'email', address: email });
+      }
+      if (phone) {
+        linkedAccounts.push({ type: 'phone', address: phone });
+      }
+
+      let privyUser: unknown = null;
+      let privyDid = providedPrivyUserId;
+
+      if (!privyDid) {
+        const wallets = Array.isArray(body.wallets) ? body.wallets : undefined;
+        privyUser = await createPrivyUser({
+          linked_accounts: linkedAccounts,
+          ...(wallets ? { wallets } : {}),
+          ...(body.create_direct_signer !== undefined
+            ? { create_direct_signer: body.create_direct_signer }
+            : {}),
+          ...(body.custom_metadata
+            ? { custom_metadata: body.custom_metadata }
+            : {}),
+        });
+
+        const privyUserRecord = asRecord(privyUser);
+        const nestedUser = asRecord(privyUserRecord?.user);
+        const createdUserId =
+          normalizeOptionalString(privyUserRecord?.id) ||
+          normalizeOptionalString(nestedUser?.id);
+
+        if (!createdUserId) {
+          return errorResponse('Privy user creation failed');
+        }
+
+        privyDid = createdUserId;
+      }
+
+      const { workspaceId } = await ensureUserWorkspace(db, privyDid, email);
+
+      const workspacePatch: Partial<typeof workspaces.$inferInsert> = {};
+      if (workspaceName) workspacePatch.name = workspaceName;
+      if (companyName) workspacePatch.companyName = companyName;
+      if (firstName) workspacePatch.firstName = firstName;
+      if (lastName) workspacePatch.lastName = lastName;
+      if (beneficiaryType) {
+        workspacePatch.beneficiaryType = beneficiaryType;
+        workspacePatch.workspaceType =
+          beneficiaryType === 'business' ? 'business' : 'personal';
+      }
+
+      if (Object.keys(workspacePatch).length > 0) {
+        await db
+          .update(workspaces)
+          .set(workspacePatch)
+          .where(eq(workspaces.id, workspaceId));
+      }
+
+      const existingProfile = await db.query.userProfilesTable.findFirst({
+        where: eq(userProfilesTable.privyDid, privyDid),
+      });
+
+      if (!existingProfile) {
+        await db.insert(userProfilesTable).values({
+          privyDid,
+          email: email ?? null,
+          skippedOrCompletedOnboardingStepper: false,
+          workspaceId,
+        });
+      } else if (email && existingProfile.email !== email) {
+        await db
+          .update(userProfilesTable)
+          .set({ email })
+          .where(eq(userProfilesTable.privyDid, privyDid));
+      }
+
+      const keyName =
+        normalizeOptionalString(body.api_key_name) || AGENT_LOGIN_KEY_NAME;
+      const expiresAtInput = normalizeOptionalString(body.api_key_expires_at);
+      const { rawKey, keyId } = await createApiKey({
+        workspaceId,
+        name: keyName,
+        createdBy: privyDid,
+        expiresAt: expiresAtInput ? new Date(expiresAtInput) : undefined,
+      });
+
+      const primarySafe = await db.query.userSafes.findFirst({
+        where: and(
+          eq(userSafes.userDid, privyDid),
+          eq(userSafes.workspaceId, workspaceId),
+          eq(userSafes.safeType, 'primary'),
+        ),
+        columns: { safeAddress: true },
+      });
+
+      const destinationAddress =
+        (destinationAddressInput && isAddress(destinationAddressInput)
+          ? destinationAddressInput
+          : null) ||
+        primarySafe?.safeAddress ||
+        extractPrivyDestinationAddress(privyUser);
+
+      const existingStarterAccount =
+        await db.query.userFundingSources.findFirst({
+          where: and(
+            eq(userFundingSources.workspaceId, workspaceId),
+            eq(userFundingSources.accountTier, 'starter'),
+            eq(userFundingSources.sourceProvider, 'align'),
+          ),
+          columns: { id: true },
+        });
+
+      let starterAccountsCreated = false;
+      let starterAccountsSkippedReason: string | null = null;
+
+      if (!createStarterAccounts) {
+        starterAccountsSkippedReason = 'Skipped by request';
+      } else if (existingStarterAccount) {
+        starterAccountsSkippedReason = 'Starter accounts already exist';
+      } else if (!destinationAddress) {
+        starterAccountsSkippedReason = 'No destination address available';
+      } else {
+        const starterResult = await createStarterVirtualAccounts({
+          userId: privyDid,
+          workspaceId,
+          destinationAddress,
+        });
+        starterAccountsCreated = !!starterResult;
+        if (!starterAccountsCreated) {
+          starterAccountsSkippedReason =
+            'Starter account provisioning unavailable';
+        }
+      }
+
+      const workspace = await db.query.workspaces.findFirst({
+        where: eq(workspaces.id, workspaceId),
+        columns: {
+          name: true,
+          kycStatus: true,
+          kycSubStatus: true,
+          kycFlowLink: true,
+          kycMarkedDone: true,
+        },
+      });
+
+      return jsonResponse(
+        {
+          mode: 'agent_api',
+          privy_user_id: privyDid,
+          workspace_id: workspaceId,
+          workspace_name: workspace?.name ?? null,
+          api_key: rawKey,
+          api_key_id: keyId,
+          kyb: {
+            status: workspace?.kycStatus ?? 'none',
+            sub_status: workspace?.kycSubStatus ?? null,
+            flow_link: workspace?.kycFlowLink ?? null,
+            marked_done: workspace?.kycMarkedDone ?? false,
+          },
+          starter_accounts: {
+            attempted: createStarterAccounts,
+            created: starterAccountsCreated,
+            skipped_reason: starterAccountsSkippedReason,
+            destination_address: destinationAddress ?? null,
+          },
         },
         201,
       );

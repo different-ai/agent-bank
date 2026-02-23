@@ -89,7 +89,7 @@ export async function apiRequest<T>(
 
   if (!apiKey && !options.adminToken) {
     throw new Error(
-      'Missing API key. Run `zero auth connect` or `zero auth login --api-key <key>`',
+      'Missing API key. Run `zero auth agentlogin --email <email>` or `zero auth login --api-key <key>`',
     );
   }
 

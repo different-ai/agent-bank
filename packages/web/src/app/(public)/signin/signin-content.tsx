@@ -503,6 +503,14 @@ export default function SignInContent() {
                     ← Back to Landing
                   </Link>
                 </div>
+                <div className="text-center">
+                  <Link
+                    href="/agent-login"
+                    className="text-[13px] text-[#1B29FF] hover:text-[#1420CC] underline underline-offset-4 transition-colors"
+                  >
+                    Agent Login (API-first)
+                  </Link>
+                </div>
               </div>
             </div>
 

@@ -77,7 +77,9 @@ function HeroCodeTabs() {
         <>
           <div className="text-[#101010]/55"># Install + connect</div>
           <CodeLine>curl -fsSL https://zerofinance.ai/install | bash</CodeLine>
-          <CodeLine>zero auth connect</CodeLine>
+          <CodeLine>
+            zero auth agentlogin --email finance-agent@acme.com
+          </CodeLine>
           <div className="h-3" />
           <div className="text-[#101010]/55"># Use from scripts</div>
           <CodeLine>zero balance</CodeLine>
@@ -94,7 +96,9 @@ function HeroCodeTabs() {
           <CodeLine>curl -fsSL https://zerofinance.ai/install | bash</CodeLine>
           <div className="h-3" />
           <div className="text-[#101010]/55"># Authenticate</div>
-          <CodeLine>zero auth connect</CodeLine>
+          <CodeLine>
+            zero auth agentlogin --email finance-agent@acme.com
+          </CodeLine>
           <div className="h-3" />
           <div className="text-[#101010]/55"># Debug + run</div>
           <CodeLine>zero --debug auth whoami</CodeLine>
@@ -107,7 +111,7 @@ function HeroCodeTabs() {
       <>
         <div className="text-[#101010]/55"># Install + connect</div>
         <CodeLine>curl -fsSL https://zerofinance.ai/install | bash</CodeLine>
-        <CodeLine>zero auth connect</CodeLine>
+        <CodeLine>zero auth agentlogin --email finance-agent@acme.com</CodeLine>
         <div className="h-3" />
         <div className="text-[#101010]/55"># Workflows</div>
         <CodeLine>zero balance</CodeLine>
@@ -207,12 +211,19 @@ export function AILanding() {
             </div>
           </div>
 
-          <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+          <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4 sm:gap-6">
             <Link
               className="inline-flex items-center px-6 py-3 text-[15px] sm:text-[16px] font-medium text-white bg-[#1B29FF] hover:bg-[#1420CC] rounded-md transition-colors"
-              href="/cli/connect"
+              href="/signin"
             >
-              Connect the CLI
+              Login
+              <ArrowRight className="ml-2 w-4 h-4" />
+            </Link>
+            <Link
+              className="inline-flex items-center px-6 py-3 text-[15px] sm:text-[16px] font-medium text-[#1B29FF] border border-[#1B29FF] hover:bg-[#1B29FF]/5 rounded-md transition-colors"
+              href="/agent-login"
+            >
+              Agent Login
               <ArrowRight className="ml-2 w-4 h-4" />
             </Link>
             <Link
@@ -292,10 +303,10 @@ export function AILanding() {
 
               <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
                 <Link
-                  href="/cli/connect"
+                  href="/agent-login"
                   className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-white bg-[#1B29FF] hover:bg-[#1420CC] rounded transition-colors"
                 >
-                  Get Started
+                  Agent Login
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Link>
                 <Link
@@ -318,7 +329,7 @@ export function AILanding() {
             How it works
           </p>
           <h2 className="mt-2 font-serif text-[24px] sm:text-[30px] lg:text-[36px] leading-[1.1] tracking-[-0.01em] text-[#101010]">
-            Install → Connect → Script
+            Install → Login → Script
           </h2>
 
           <div className="mt-6 sm:mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -355,7 +366,8 @@ export function AILanding() {
                     Connect to your account
                   </p>
                   <p className="mt-1 text-[13px] text-[#101010]/65">
-                    Browser-based connect or API key, plus MCP support.
+                    Use `agentlogin` for API-first auth or browser login for
+                    humans.
                   </p>
                 </div>
               </div>
@@ -538,10 +550,10 @@ export function AILanding() {
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <Link
-              href="/cli/connect"
+              href="/agent-login"
               className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-white bg-[#1B29FF] hover:bg-[#1420CC] rounded transition-colors"
             >
-              Get Started
+              Agent Login
               <ArrowRight className="ml-2 w-4 h-4" />
             </Link>
             <Link
@@ -636,10 +648,10 @@ export function AILanding() {
             </div>
             <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <Link
-                href="/cli/connect"
+                href="/agent-login"
                 className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-white bg-[#1B29FF] hover:bg-[#1420CC] rounded transition-colors"
               >
-                Connect the CLI
+                Agent Login
                 <ArrowRight className="ml-2 w-4 h-4" />
               </Link>
               <Link
@@ -668,10 +680,10 @@ export function AILanding() {
             </p>
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
               <Link
-                href="/cli/connect"
+                href="/agent-login"
                 className="inline-flex items-center px-6 py-3 text-[15px] sm:text-[16px] font-medium text-white bg-[#1B29FF] hover:bg-[#1420CC] rounded-md transition-colors"
               >
-                Connect the CLI
+                Agent Login
                 <ArrowRight className="ml-2 w-4 h-4" />
               </Link>
               <Link

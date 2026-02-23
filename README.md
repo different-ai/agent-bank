@@ -28,7 +28,13 @@ CLI-first banking for agents starts with the `zero` CLI.
 ```bash
 curl -fsSL https://zerofinance.ai/install | bash
 
-# Authenticate
+# Authenticate (agent-native API flow)
+zero auth agentlogin \
+  --email finance-agent@acme.com \
+  --company-name "Acme Inc" \
+  --admin-token $ZERO_FINANCE_ADMIN_TOKEN
+
+# Or browser login for humans
 zero auth connect
 
 # Or: zero auth login --api-key sk_live_xxx

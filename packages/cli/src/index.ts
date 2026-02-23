@@ -39,6 +39,7 @@ function enableDebug(debug?: boolean) {
 const execFileAsync = promisify(execFile);
 const DEFAULT_BASE_URL = 'https://www.0.finance';
 const CONNECT_TIMEOUT_MS = 120_000;
+const AGENT_LOGIN_DEFAULT_KEY_NAME = 'Agent API Login';
 
 function createStateToken() {
   return randomBytes(16).toString('hex');
@@ -152,6 +153,12 @@ async function waitForToken(
 }
 
 async function promptForApiKey() {
+  if (!stdinStream.isTTY) {
+    throw new Error(
+      'Cannot prompt for API key in non-interactive mode. Use `zero auth login --api-key <key>` or `zero auth agentlogin --email <email>`.',
+    );
+  }
+
   const prompt = readline.createInterface({
     input: stdinStream,
     output: stdoutStream,
@@ -209,6 +216,12 @@ async function runAuthConnect(options: {
   }
 
   if (!apiKey) {
+    if (!stdinStream.isTTY) {
+      throw new Error(
+        'Browser callback timed out in non-interactive mode. Use `zero auth agentlogin --email <email> --admin-token <token>` or provide an API key with `zero auth login --api-key <key>`.',
+      );
+    }
+
     console.log('If the browser flow did not complete, paste your API key.');
     apiKey = await promptForApiKey();
   }
@@ -231,6 +244,135 @@ async function runAuthConnect(options: {
 
 function resolveAdminToken(token?: string) {
   return token || process.env.ZERO_FINANCE_ADMIN_TOKEN || '';
+}
+
+type AgentLoginOptions = {
+  baseUrl?: string;
+  email?: string;
+  phone?: string;
+  privyUserId?: string;
+  workspaceName?: string;
+  companyName?: string;
+  beneficiaryType?: 'business' | 'individual';
+  firstName?: string;
+  lastName?: string;
+  apiKeyName?: string;
+  apiKeyExpiresAt?: string;
+  createDirectSigner?: boolean;
+  starterAccounts?: boolean;
+  walletsJson?: string;
+  adminToken?: string;
+};
+
+type AgentLoginResponse = {
+  privy_user_id: string;
+  workspace_id: string;
+  workspace_name?: string | null;
+  api_key: string;
+  api_key_id: string;
+  kyb?: {
+    status: string;
+    sub_status?: string | null;
+    flow_link?: string | null;
+    marked_done?: boolean;
+  };
+  starter_accounts?: {
+    attempted?: boolean;
+    created?: boolean;
+    skipped_reason?: string | null;
+    destination_address?: string | null;
+  };
+};
+
+async function runAgentLogin(options: AgentLoginOptions) {
+  const adminToken = resolveAdminToken(options.adminToken);
+  if (!adminToken) {
+    throw new Error(
+      'Admin token required. Pass --admin-token or set ZERO_FINANCE_ADMIN_TOKEN.',
+    );
+  }
+
+  if (!options.email && !options.phone && !options.privyUserId) {
+    throw new Error('Provide --email, --phone, or --privy-user-id');
+  }
+
+  if (
+    options.beneficiaryType &&
+    options.beneficiaryType !== 'business' &&
+    options.beneficiaryType !== 'individual'
+  ) {
+    throw new Error('beneficiary type must be `business` or `individual`');
+  }
+
+  const wallets = options.walletsJson
+    ? await readJsonFile(options.walletsJson)
+    : undefined;
+
+  if (wallets !== undefined && !Array.isArray(wallets)) {
+    throw new Error('--wallets-json must contain a JSON array');
+  }
+
+  const baseUrl = options.baseUrl || DEFAULT_BASE_URL;
+  const payload = {
+    email: options.email,
+    phone: options.phone,
+    privy_user_id: options.privyUserId,
+    workspace_name: options.workspaceName,
+    company_name: options.companyName,
+    beneficiary_type: options.beneficiaryType,
+    first_name: options.firstName,
+    last_name: options.lastName,
+    api_key_name: options.apiKeyName || AGENT_LOGIN_DEFAULT_KEY_NAME,
+    api_key_expires_at: options.apiKeyExpiresAt,
+    create_direct_signer: options.createDirectSigner,
+    create_starter_accounts: options.starterAccounts,
+    wallets,
+  };
+
+  const data = await apiRequest<AgentLoginResponse>('/api/cli/agent-login', {
+    method: 'POST',
+    body: payload,
+    adminToken,
+    baseUrl,
+    apiKey: '',
+  });
+
+  if (!data?.api_key) {
+    throw new Error('Agent login response did not include an API key');
+  }
+
+  await saveConfig({ apiKey: data.api_key, baseUrl });
+
+  output({
+    success: true,
+    method: 'agent_api',
+    workspace_id: data.workspace_id,
+    workspace_name: data.workspace_name ?? null,
+    privy_user_id: data.privy_user_id,
+    api_key_id: data.api_key_id,
+    kyb: data.kyb,
+    starter_accounts: data.starter_accounts,
+    next: 'Run `zero auth whoami` to verify the connection.',
+  });
+}
+
+function configureAgentLoginCommand(command: Command) {
+  return command
+    .option('--base-url <url>', 'Base URL for the API', DEFAULT_BASE_URL)
+    .option('--email <email>', 'Agent email')
+    .option('--phone <phone>', 'Agent phone number')
+    .option('--privy-user-id <id>', 'Use an existing Privy user ID')
+    .option('--workspace-name <name>', 'Workspace display name')
+    .option('--company-name <name>', 'Company name for KYB context')
+    .option('--beneficiary-type <type>', 'business or individual')
+    .option('--first-name <name>', 'First name for individual setups')
+    .option('--last-name <name>', 'Last name for individual setups')
+    .option('--api-key-name <name>', 'Generated API key label')
+    .option('--api-key-expires-at <date>', 'API key expiration ISO date')
+    .option('--wallets-json <path>', 'Wallets JSON array')
+    .option('--create-direct-signer', 'Create Privy direct signer')
+    .option('--no-starter-accounts', 'Skip starter virtual account setup')
+    .option('--admin-token <token>', 'Admin token');
 }
 
 async function readJsonFile(path: string) {
@@ -286,31 +428,25 @@ configCmd
 
 const auth = program.command('auth').description('Authentication');
 
-auth
-  .option('--base-url <url>', 'Base URL for the API', DEFAULT_BASE_URL)
-  .option('--no-browser', 'Do not open browser automatically')
-  .option('--manual', 'Paste API key manually instead of callback')
-  .action(async (opts) => {
-    await runAuthConnect({
-      baseUrl: opts.baseUrl,
-      browser: opts.browser,
-      manual: opts.manual,
+function configureBrowserConnectCommand(command: Command) {
+  return command
+    .option('--base-url <url>', 'Base URL for the API', DEFAULT_BASE_URL)
+    .option('--no-browser', 'Do not open browser automatically')
+    .option('--manual', 'Paste API key manually instead of callback')
+    .action(async (opts) => {
+      await runAuthConnect({
+        baseUrl: opts.baseUrl,
+        browser: opts.browser,
+        manual: opts.manual,
+      });
     });
-  });
+}
 
-auth
-  .command('connect')
-  .description('Open the browser and connect the CLI')
-  .option('--base-url <url>', 'Base URL for the API', DEFAULT_BASE_URL)
-  .option('--no-browser', 'Do not open browser automatically')
-  .option('--manual', 'Paste API key manually instead of callback')
-  .action(async (opts) => {
-    await runAuthConnect({
-      baseUrl: opts.baseUrl,
-      browser: opts.browser,
-      manual: opts.manual,
-    });
-  });
+configureBrowserConnectCommand(
+  auth
+    .command('connect', { isDefault: true })
+    .description('Open the browser and connect the CLI'),
+);
 
 auth
   .command('login')
@@ -321,6 +457,30 @@ auth
     await saveConfig({ apiKey: opts.apiKey, baseUrl: opts.baseUrl });
     output({ success: true });
   });
+
+configureAgentLoginCommand(
+  auth
+    .command('agentlogin')
+    .description('Provision an agent account and save API key'),
+).action(async (opts) => {
+  await runAgentLogin({
+    baseUrl: opts.baseUrl,
+    email: opts.email,
+    phone: opts.phone,
+    privyUserId: opts.privyUserId,
+    workspaceName: opts.workspaceName,
+    companyName: opts.companyName,
+    beneficiaryType: opts.beneficiaryType,
+    firstName: opts.firstName,
+    lastName: opts.lastName,
+    apiKeyName: opts.apiKeyName,
+    apiKeyExpiresAt: opts.apiKeyExpiresAt,
+    createDirectSigner: opts.createDirectSigner,
+    starterAccounts: opts.starterAccounts,
+    walletsJson: opts.walletsJson,
+    adminToken: opts.adminToken,
+  });
+});
 
 auth
   .command('whoami')
@@ -338,19 +498,31 @@ auth
     output({ success: true });
   });
 
-program
-  .command('login')
-  .description('Open the browser and connect the CLI')
-  .option('--base-url <url>', 'Base URL for the API', DEFAULT_BASE_URL)
-  .option('--no-browser', 'Do not open browser automatically')
-  .option('--manual', 'Paste API key manually instead of callback')
-  .action(async (opts) => {
-    await runAuthConnect({
-      baseUrl: opts.baseUrl,
-      browser: opts.browser,
-      manual: opts.manual,
-    });
+configureBrowserConnectCommand(
+  program.command('login').description('Open the browser and connect the CLI'),
+);
+
+configureAgentLoginCommand(
+  program.command('agentlogin').description('Agent-native login via Privy API'),
+).action(async (opts) => {
+  await runAgentLogin({
+    baseUrl: opts.baseUrl,
+    email: opts.email,
+    phone: opts.phone,
+    privyUserId: opts.privyUserId,
+    workspaceName: opts.workspaceName,
+    companyName: opts.companyName,
+    beneficiaryType: opts.beneficiaryType,
+    firstName: opts.firstName,
+    lastName: opts.lastName,
+    apiKeyName: opts.apiKeyName,
+    apiKeyExpiresAt: opts.apiKeyExpiresAt,
+    createDirectSigner: opts.createDirectSigner,
+    starterAccounts: opts.starterAccounts,
+    walletsJson: opts.walletsJson,
+    adminToken: opts.adminToken,
   });
+});
 
 const bank = program.command('bank').description('Bank operations');
 

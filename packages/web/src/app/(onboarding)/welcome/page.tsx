@@ -313,10 +313,10 @@ export default function WelcomePage() {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </button>
                 <Link
-                  href="/cli/connect"
+                  href="/agent-login"
                   className="inline-flex items-center justify-center px-6 py-3 text-[15px] font-medium text-[#0050ff] border border-[#0050ff] hover:bg-[#0050ff]/5 rounded-md transition-colors w-full sm:w-auto"
                 >
-                  Connect the CLI
+                  Agent Login
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </div>

@@ -47,10 +47,16 @@ export function Header() {
             </Link>
 
             <Link
-              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-[#1B29FF] hover:bg-[#1420CC] text-white text-[12px] sm:text-[13px] font-medium rounded-md transition-all"
-              href="/cli/connect"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 border border-[#101010]/20 text-[#101010] hover:text-[#1B29FF] hover:border-[#1B29FF]/40 text-[12px] sm:text-[13px] font-medium rounded-md transition-all"
+              href="/signin"
             >
-              Get Started
+              Login
+            </Link>
+            <Link
+              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-[#1B29FF] hover:bg-[#1420CC] text-white text-[12px] sm:text-[13px] font-medium rounded-md transition-all"
+              href="/agent-login"
+            >
+              Agent Login
             </Link>
           </nav>
         </div>
