@@ -5,7 +5,7 @@ import {
   workspaceMembers,
   type WorkspaceMember,
 } from '@/db/schema';
-import { eq, and, ne, desc } from 'drizzle-orm';
+import { eq, and, ne, desc, sql } from 'drizzle-orm';
 
 // Drizzle types for db/transaction are quite involved; use a minimal surface instead.
 type DatabaseExecutor = any;
@@ -172,6 +172,44 @@ async function resolveWorkspaceId(
   return workspace.id;
 }
 
+async function bootstrapUserWorkspace(
+  tx: DatabaseExecutor,
+  userId: string,
+  userEmail?: string | null,
+) {
+  const workspaceId = randomUUID();
+  const workspaceName = `${userId.slice(0, 8)}'s Workspace`;
+
+  await tx.execute(sql`
+    WITH inserted_user AS (
+      INSERT INTO users (privy_did, primary_workspace_id, email)
+      VALUES (${userId}, ${workspaceId}::uuid, ${userEmail ?? null})
+      ON CONFLICT (privy_did) DO NOTHING
+      RETURNING privy_did
+    ),
+    inserted_workspace AS (
+      INSERT INTO workspaces (id, name, created_by)
+      VALUES (${workspaceId}::uuid, ${workspaceName}, ${userId})
+      ON CONFLICT (id) DO NOTHING
+      RETURNING id
+    )
+    SELECT 1;
+  `);
+
+  const userRows = await tx
+    .select()
+    .from(users)
+    .where(eq(users.privyDid, userId))
+    .limit(1);
+
+  const user = userRows[0];
+  if (!user) {
+    throw new Error('Failed to create user workspace bootstrap records');
+  }
+
+  return user;
+}
+
 export async function ensureUserWorkspace(
   dbExecutor: DatabaseExecutor,
   userId: string,
@@ -245,78 +283,10 @@ export async function ensureUserWorkspace(
             .delete(workspaceMembers)
             .where(eq(workspaceMembers.id, existingMembership.id));
 
-          const tempWorkspaceId = randomUUID();
-
-          const insertedUsers = await tx
-            .insert(users)
-            .values({
-              privyDid: userId,
-              primaryWorkspaceId: tempWorkspaceId,
-              email: userEmail,
-            })
-            .onConflictDoNothing()
-            .returning();
-
-          if (insertedUsers.length === 0) {
-            const existing = await tx
-              .select()
-              .from(users)
-              .where(eq(users.privyDid, userId))
-              .limit(1);
-            user = existing[0];
-          } else {
-            const [workspace] = await tx
-              .insert(workspaces)
-              .values({
-                id: tempWorkspaceId,
-                name: `${userId.slice(0, 8)}'s Workspace`,
-                createdBy: userId,
-              })
-              .returning();
-
-            if (!workspace) {
-              throw new Error('Failed to create workspace for user');
-            }
-
-            user = insertedUsers[0];
-          }
+          user = await bootstrapUserWorkspace(tx, userId, userEmail);
         }
       } else {
-        const tempWorkspaceId = randomUUID();
-
-        const insertedUsers = await tx
-          .insert(users)
-          .values({
-            privyDid: userId,
-            primaryWorkspaceId: tempWorkspaceId,
-            email: userEmail,
-          })
-          .onConflictDoNothing()
-          .returning();
-
-        if (insertedUsers.length === 0) {
-          const existing = await tx
-            .select()
-            .from(users)
-            .where(eq(users.privyDid, userId))
-            .limit(1);
-          user = existing[0];
-        } else {
-          const [workspace] = await tx
-            .insert(workspaces)
-            .values({
-              id: tempWorkspaceId,
-              name: `${userId.slice(0, 8)}'s Workspace`,
-              createdBy: userId,
-            })
-            .returning();
-
-          if (!workspace) {
-            throw new Error('Failed to create workspace for user');
-          }
-
-          user = insertedUsers[0];
-        }
+        user = await bootstrapUserWorkspace(tx, userId, userEmail);
       }
     }
 

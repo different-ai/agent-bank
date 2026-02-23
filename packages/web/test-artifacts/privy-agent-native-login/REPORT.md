@@ -59,6 +59,12 @@ Make authentication work cleanly for both audiences:
 - `zero auth connect --manual --no-browser` now exits with actionable guidance if stdin is non-interactive.
 - Refactored `auth` command wiring so `zero auth connect ...` routes correctly as a real subcommand.
 
+### 6) Workspace/user bootstrap fix for true API-native onboarding
+
+- Fixed `ensureUserWorkspace` bootstrap path to handle the circular `users` <-> `workspaces` foreign key requirement in one SQL statement.
+- Implemented a CTE-based insert that creates both records atomically for brand-new agent users.
+- This unblocked full agent-native login for first-time users (no human/browser fallback required).
+
 ## Testing Evidence
 
 ## Type safety/build
@@ -77,6 +83,26 @@ Make authentication work cleanly for both audiences:
 - `POST /api/cli/agent-login` without admin token returns:
   - HTTP 401
   - `{"error":"Unauthorized: invalid admin token"}`
+
+## Full E2E agent-native login proof (no human confirmation)
+
+- Environment setup:
+  - `docker compose -f docker-compose.lite.yml up -d`
+  - `pnpm --filter @zero-finance/web db:migrate:lite`
+  - `pnpm --filter @zero-finance/web dev:lite`
+- Agent-native login command:
+  - `node packages/cli/dist/index.js auth agentlogin --email agent-e2e-<timestamp>@example.com --workspace-name "Agent E2E Workspace" --company-name "Agent E2E Inc" --beneficiary-type business --admin-token <token> --base-url http://127.0.0.1:3000`
+- Result:
+  - `success: true`
+  - `method: "agent_api"`
+  - `workspace_name: "Agent E2E Workspace"`
+  - `privy_user_id` returned
+  - `api_key_id` returned
+  - `kyb.status: "none"`
+- Follow-up auth verification:
+  - `node packages/cli/dist/index.js auth whoami`
+  - Returned matching `workspace_id`, `workspace_name`, and `key_id`
+- No browser prompt or human confirmation was required in this E2E flow.
 
 ## UI verification screenshots
 
