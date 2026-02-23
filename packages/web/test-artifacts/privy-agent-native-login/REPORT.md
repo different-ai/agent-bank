@@ -65,6 +65,13 @@ Make authentication work cleanly for both audiences:
 - Implemented a CTE-based insert that creates both records atomically for brand-new agent users.
 - This unblocked full agent-native login for first-time users (no human/browser fallback required).
 
+### 7) Wallet creation by default for agent login
+
+- `agent-login` now defaults wallet requests to one Ethereum wallet when `wallets` is not provided.
+- Existing Privy users are fetched to detect existing wallet addresses.
+- If no wallet address is present, wallet pre-generation is attempted automatically.
+- Response now includes `wallet.address`, `wallet.requested`, and provisioning state.
+
 ## Testing Evidence
 
 ## Type safety/build
@@ -98,11 +105,21 @@ Make authentication work cleanly for both audiences:
   - `workspace_name: "Agent E2E Workspace"`
   - `privy_user_id` returned
   - `api_key_id` returned
+  - `wallet.address` returned
   - `kyb.status: "none"`
 - Follow-up auth verification:
   - `node packages/cli/dist/index.js auth whoami`
   - Returned matching `workspace_id`, `workspace_name`, and `key_id`
 - No browser prompt or human confirmation was required in this E2E flow.
+
+## Default wallet E2E proof
+
+- Command run without `--wallets-json`:
+  - `node packages/cli/dist/index.js auth agentlogin --email agent-wallet-default-<timestamp>@example.com --workspace-name "Agent Wallet Default" --company-name "Wallet Default Inc" --beneficiary-type business --admin-token <token> --base-url http://127.0.0.1:3000`
+- Result included:
+  - `wallet.requested: [{"chain_type":"ethereum"}]`
+  - non-null `wallet.address`
+  - `starter_accounts.destination_address` equal to `wallet.address`
 
 ## UI verification screenshots
 

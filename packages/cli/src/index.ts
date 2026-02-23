@@ -270,6 +270,12 @@ type AgentLoginResponse = {
   workspace_name?: string | null;
   api_key: string;
   api_key_id: string;
+  wallet?: {
+    address?: string | null;
+    requested?: unknown[];
+    provisioned?: boolean;
+    provisioning_error?: string | null;
+  };
   kyb?: {
     status: string;
     sub_status?: string | null;
@@ -350,6 +356,7 @@ async function runAgentLogin(options: AgentLoginOptions) {
     workspace_name: data.workspace_name ?? null,
     privy_user_id: data.privy_user_id,
     api_key_id: data.api_key_id,
+    wallet: data.wallet,
     kyb: data.kyb,
     starter_accounts: data.starter_accounts,
     next: 'Run `zero auth whoami` to verify the connection.',
@@ -369,7 +376,10 @@ function configureAgentLoginCommand(command: Command) {
     .option('--last-name <name>', 'Last name for individual setups')
     .option('--api-key-name <name>', 'Generated API key label')
     .option('--api-key-expires-at <date>', 'API key expiration ISO date')
-    .option('--wallets-json <path>', 'Wallets JSON array')
+    .option(
+      '--wallets-json <path>',
+      'Wallets JSON array (defaults to one Ethereum wallet)',
+    )
     .option('--create-direct-signer', 'Create Privy direct signer')
     .option('--no-starter-accounts', 'Skip starter virtual account setup')
     .option('--admin-token <token>', 'Admin token');

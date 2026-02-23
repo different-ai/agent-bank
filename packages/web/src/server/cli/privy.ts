@@ -1,4 +1,4 @@
-type PrivyWalletRequest = {
+export type PrivyWalletRequest = {
   chain_type:
     | 'ethereum'
     | 'solana'
@@ -69,6 +69,29 @@ export async function createPrivyUser(params: PrivyCreateUserParams) {
   if (!response.ok) {
     const body = await response.text();
     throw new Error(`Privy create user failed: ${body}`);
+  }
+
+  return response.json();
+}
+
+export async function getPrivyUser(userId: string) {
+  const { appId, appSecret } = getPrivyCredentials();
+
+  const response = await fetch(
+    `https://auth.privy.io/api/v1/users/${encodeURIComponent(userId)}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: buildAuthHeader(appId, appSecret),
+        'privy-app-id': appId,
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Privy get user failed: ${body}`);
   }
 
   return response.json();

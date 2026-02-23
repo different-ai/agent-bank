@@ -23,7 +23,12 @@ import {
   dismissProposal,
 } from '@/server/mcp/tools';
 import { createApiKey } from '@/lib/mcp/api-key';
-import { createPrivyUser, pregeneratePrivyWallets } from '@/server/cli/privy';
+import {
+  createPrivyUser,
+  getPrivyUser,
+  type PrivyWalletRequest,
+  pregeneratePrivyWallets,
+} from '@/server/cli/privy';
 import { ensureUserWorkspace } from '@/server/utils/workspace';
 import { db } from '@/db';
 import {
@@ -65,6 +70,7 @@ import { getSpendableBalanceByWorkspace } from '@/server/services/spendable-bala
 
 export const dynamic = 'force-dynamic';
 const AGENT_LOGIN_KEY_NAME = 'Agent API Login';
+const DEFAULT_AGENT_WALLETS = [{ chain_type: 'ethereum' }] as const;
 
 type McpTextResult = {
   content: Array<{ type: string; text: string }>;
@@ -174,6 +180,14 @@ function parseBeneficiaryType(
   }
 
   return value;
+}
+
+function resolveAgentWalletRequests(value: unknown): PrivyWalletRequest[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    return DEFAULT_AGENT_WALLETS.map((wallet) => ({ ...wallet }));
+  }
+
+  return value as PrivyWalletRequest[];
 }
 
 function errorResponse(message: string, status = 400) {
@@ -1495,6 +1509,7 @@ export async function POST(
       );
       const beneficiaryType = parseBeneficiaryType(body.beneficiary_type);
       const createStarterAccounts = body.create_starter_accounts !== false;
+      const walletRequests = resolveAgentWalletRequests(body.wallets);
 
       if (!email && !phone && !providedPrivyUserId) {
         return errorResponse('email, phone, or privy_user_id is required');
@@ -1515,10 +1530,9 @@ export async function POST(
       let privyDid = providedPrivyUserId;
 
       if (!privyDid) {
-        const wallets = Array.isArray(body.wallets) ? body.wallets : undefined;
         privyUser = await createPrivyUser({
           linked_accounts: linkedAccounts,
-          ...(wallets ? { wallets } : {}),
+          wallets: walletRequests,
           ...(body.create_direct_signer !== undefined
             ? { create_direct_signer: body.create_direct_signer }
             : {}),
@@ -1538,6 +1552,8 @@ export async function POST(
         }
 
         privyDid = createdUserId;
+      } else {
+        privyUser = await getPrivyUser(privyDid);
       }
 
       const { workspaceId } = await ensureUserWorkspace(db, privyDid, email);
@@ -1597,12 +1613,43 @@ export async function POST(
         columns: { safeAddress: true },
       });
 
-      const destinationAddress =
+      let destinationAddress =
         (destinationAddressInput && isAddress(destinationAddressInput)
           ? destinationAddressInput
           : null) ||
         primarySafe?.safeAddress ||
         extractPrivyDestinationAddress(privyUser);
+
+      let walletProvisioned = false;
+      let walletProvisionError: string | null = null;
+
+      if (!destinationAddress && privyDid) {
+        try {
+          const walletProvisionResult = await pregeneratePrivyWallets({
+            user_id: privyDid,
+            wallets: walletRequests,
+            ...(body.create_direct_signer !== undefined
+              ? { create_direct_signer: body.create_direct_signer }
+              : {}),
+          });
+
+          privyUser = walletProvisionResult;
+          const resolvedAddress = extractPrivyDestinationAddress(privyUser);
+
+          if (resolvedAddress) {
+            destinationAddress = resolvedAddress;
+            walletProvisioned = true;
+          } else {
+            walletProvisionError =
+              'Wallet provisioning did not return an address';
+          }
+        } catch (error) {
+          walletProvisionError =
+            error instanceof Error
+              ? error.message
+              : 'Wallet provisioning failed';
+        }
+      }
 
       const existingStarterAccount =
         await db.query.userFundingSources.findFirst({
@@ -1666,6 +1713,12 @@ export async function POST(
             created: starterAccountsCreated,
             skipped_reason: starterAccountsSkippedReason,
             destination_address: destinationAddress ?? null,
+          },
+          wallet: {
+            address: destinationAddress ?? null,
+            requested: walletRequests,
+            provisioned: walletProvisioned,
+            provisioning_error: walletProvisionError,
           },
         },
         201,

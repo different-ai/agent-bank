@@ -82,7 +82,8 @@ export default function AgentLoginPage() {
             </div>
             <p className="mt-4 text-[14px] text-[#101010]/70">
               Provision a Privy user, create workspace API keys, and return KYB
-              status in one API call.
+              status in one API call. By default it also provisions an Ethereum
+              wallet for the agent.
             </p>
             <a
               href="https://docs.0.finance/cli/reference"

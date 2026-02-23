@@ -25,6 +25,8 @@ zero auth agentlogin \
   --company-name "Acme Inc" \
   --admin-token $ZERO_FINANCE_ADMIN_TOKEN
 
+# Note: defaults to creating one Ethereum wallet when wallets are not specified
+
 # Or browser login for humans
 zero auth connect
 
