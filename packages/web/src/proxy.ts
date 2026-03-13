@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const POSTHOG_PROXY_PATH = '/ow';
+const POSTHOG_API_HOST = 'us.i.posthog.com';
+const POSTHOG_ASSETS_HOST = 'us-assets.i.posthog.com';
+
 // Force Node.js runtime to support Privy server-auth crypto module
 export const config = {
   matcher: [
+    '/ow/:path*',
     /*
      * Match all request paths except for the ones starting with:
      * - api (API routes)
@@ -19,6 +24,26 @@ export const config = {
 // This function can be marked `async` if using `await` inside
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname.startsWith(POSTHOG_PROXY_PATH)) {
+    const url = request.nextUrl.clone();
+    const hostname = pathname.startsWith(`${POSTHOG_PROXY_PATH}/static/`)
+      ? POSTHOG_ASSETS_HOST
+      : POSTHOG_API_HOST;
+    const requestHeaders = new Headers(request.headers);
+
+    requestHeaders.set('host', hostname);
+    requestHeaders.delete('cookie');
+
+    url.protocol = 'https';
+    url.hostname = hostname;
+    url.port = '443';
+    url.pathname = pathname.replace(/^\/ow/, '') || '/';
+
+    return NextResponse.rewrite(url, {
+      headers: requestHeaders,
+    });
+  }
 
   // Skip auth checks for demo route
   if (pathname.startsWith('/dashboard/demo')) {

@@ -1,4 +1,5 @@
 export const POSTHOG_HOST = 'https://us.i.posthog.com';
+export const POSTHOG_PROXY_PATH = '/ow';
 
 export function getPostHogKey(): string {
   // Prefer the env-provided key so it can vary between environments.
@@ -6,4 +7,4 @@ export function getPostHogKey(): string {
   return process.env.NEXT_PUBLIC_POSTHOG_KEY || 'phc_HxAOuIz9mTAqksVrWCEH5eJmRCZf4Ehd4TINbivkvoI';
 }
 
-export const POSTHOG_API_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST || POSTHOG_HOST;
+export const POSTHOG_API_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST || POSTHOG_PROXY_PATH;

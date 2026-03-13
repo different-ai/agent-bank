@@ -10,13 +10,14 @@ import { http } from 'wagmi';
 import { SmartWalletsProvider } from '@privy-io/react-auth/smart-wallets';
 import SuspendedPostHogPageView from './posthog-pageview';
 import { PostHogUserIdentification } from './posthog-user-identification';
+import { POSTHOG_API_HOST } from '@/lib/posthog-config';
 
 import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react';
 
 if (typeof window !== 'undefined') {
   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+    api_host: POSTHOG_API_HOST,
     capture_pageview: false, // Disable automatic pageview capture, as we capture manually
   });
 }
