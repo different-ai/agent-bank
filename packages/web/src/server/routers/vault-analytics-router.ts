@@ -1,9 +1,6 @@
 import { z } from 'zod';
 import { router, protectedProcedure } from '../create-router';
 import { TRPCError } from '@trpc/server';
-import { db } from '../../db';
-import { admins } from '../../db/schema';
-import { eq } from 'drizzle-orm';
 import {
   fetchVaultMetrics,
   fetchVaultHistoricalData,
@@ -13,28 +10,19 @@ import {
   MORPHO_CHAIN_IDS,
 } from '../earn/morpho-analytics-service';
 import { getVaultByAddress, listVaults } from '../earn/vault-registry';
+import { checkIsUserAdmin } from '@/server/auth/admin-access';
 
-// Check admin status
-async function checkIsUserAdmin(privyDid: string): Promise<boolean> {
-  const normalizedId = privyDid.trim();
-  try {
-    const admin = await db.query.admins.findFirst({
-      where: eq(admins.privyDid, normalizedId),
-    });
-    return !!admin;
-  } catch {
-    return false;
-  }
-}
-
-async function requireAdmin(privyDid: string | null | undefined) {
+async function requireAdmin(
+  privyDid: string | null | undefined,
+  email?: string | null,
+) {
   if (!privyDid) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
       message: 'Authentication required',
     });
   }
-  const isAdmin = await checkIsUserAdmin(privyDid);
+  const isAdmin = await checkIsUserAdmin({ privyDid, email });
   if (!isAdmin) {
     throw new TRPCError({
       code: 'FORBIDDEN',
@@ -48,7 +36,7 @@ export const vaultAnalyticsRouter = router({
    * Get all tracked vaults with current metrics
    */
   getTrackedVaults: protectedProcedure.query(async ({ ctx }) => {
-    await requireAdmin(ctx.userId);
+    await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
     const trackedVaults = await listVaults({ status: 'active' });
 
@@ -139,7 +127,7 @@ export const vaultAnalyticsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { metrics, historical, deployment } =
         await fetchComprehensiveVaultData(
@@ -224,7 +212,7 @@ export const vaultAnalyticsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const historical = await fetchVaultHistoricalData(
         input.address,
@@ -253,7 +241,7 @@ export const vaultAnalyticsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const parsed = parseMorphoVaultUrl(input.url);
       if (!parsed) {
@@ -329,7 +317,7 @@ export const vaultAnalyticsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const results = await Promise.all(
         input.vaults.map(async (vault) => {
@@ -367,7 +355,7 @@ export const vaultAnalyticsRouter = router({
    * Get supported chains
    */
   getSupportedChains: protectedProcedure.query(async ({ ctx }) => {
-    await requireAdmin(ctx.userId);
+    await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
     return Object.entries(MORPHO_CHAIN_IDS).map(([name, id]) => ({
       name: name.charAt(0).toUpperCase() + name.slice(1),

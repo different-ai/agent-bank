@@ -26,6 +26,7 @@ import {
   getSafeBalance,
   getBatchSafeBalances,
 } from '@/server/services/safe.service';
+import { checkIsUserAdmin } from '@/server/auth/admin-access';
 import { createPublicClient, http, parseAbi } from 'viem';
 import { base } from 'viem/chains';
 import { getBaseRpcUrl } from '@/lib/base-rpc-url';
@@ -67,39 +68,14 @@ let platformStatsCache: {
 };
 
 /**
- * Helper to verify if a user is an admin
- * @param privyDid Privy DID of the user to check
- * @returns true if user is an admin, false otherwise
- */
-async function checkIsUserAdmin(privyDid: string): Promise<boolean> {
-  // Normalize ID
-  const normalizedId = privyDid.trim();
-  console.log(`Admin check: Checking privileges for '${normalizedId}'`);
-
-  try {
-    const admin = await db.query.admins.findFirst({
-      where: eq(admins.privyDid, normalizedId),
-    });
-
-    if (admin) {
-      console.log('Admin check: User found in database');
-      return true;
-    }
-
-    console.log('Admin check: User NOT found in database');
-    return false;
-  } catch (error) {
-    console.error('Admin check: Database error:', error);
-    return false;
-  }
-}
-
-/**
  * Helper to verify admin status and throw if not admin
  * @param privyDid Privy DID of the user to check
  */
-async function requireAdmin(privyDid: string): Promise<void> {
-  const isAdmin = await checkIsUserAdmin(privyDid);
+async function requireAdmin(
+  privyDid: string,
+  email?: string | null,
+): Promise<void> {
+  const isAdmin = await checkIsUserAdmin({ privyDid, email });
   if (!isAdmin) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
@@ -132,7 +108,10 @@ export const adminRouter = router({
       console.log('Admin check: No userId in context');
       return { isAdmin: false };
     }
-    const isAdmin = await checkIsUserAdmin(ctx.userId);
+    const isAdmin = await checkIsUserAdmin({
+      privyDid: ctx.userId,
+      email: ctx.user?.email?.address,
+    });
     console.log(`Admin check for ${ctx.userId}: ${isAdmin}`);
     return { isAdmin };
   }),
@@ -147,7 +126,7 @@ export const adminRouter = router({
         message: 'User ID not found',
       });
     }
-    await requireAdmin(ctx.userId);
+    await requireAdmin(ctx.userId, ctx.user?.email?.address);
     return await userService.listUsers();
   }),
 
@@ -158,7 +137,7 @@ export const adminRouter = router({
         message: 'User ID not found',
       });
     }
-    await requireAdmin(ctx.userId);
+    await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
     try {
       const allDeposits = await db.select().from(earnDeposits);
@@ -241,7 +220,7 @@ export const adminRouter = router({
         message: 'User ID not found',
       });
     }
-    await requireAdmin(ctx.userId);
+    await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
     // Check cache first
     if (platformStatsCache.data && platformStatsCache.expiresAt > Date.now()) {
@@ -397,7 +376,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { privyDid } = input;
       const logPayload = {
@@ -519,7 +498,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const result = await userService.deleteUser(input.privyDid);
       if (!result.success) {
@@ -547,7 +526,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
       try {
         const updatedUser = await db
           .update(users)
@@ -611,7 +590,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { privyDid } = input;
       const logPayload = {
@@ -803,7 +782,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { privyDid } = input;
       const logPayload = {
@@ -908,7 +887,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { privyDid } = input;
       const logPayload = {
@@ -1025,7 +1004,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { privyDid } = input;
       const logPayload = {
@@ -1187,7 +1166,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { privyDid } = input;
       const logPayload = {
@@ -1306,7 +1285,7 @@ export const adminRouter = router({
         message: 'User ID not found',
       });
     }
-    await requireAdmin(ctx.userId);
+    await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
     try {
       const allWorkspaces = await db
@@ -1461,7 +1440,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { workspaceId } = input;
 
@@ -1768,7 +1747,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       try {
         const userDeposits = await db
@@ -1839,7 +1818,7 @@ export const adminRouter = router({
         message: 'User ID not found',
       });
     }
-    await requireAdmin(ctx.userId);
+    await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
     try {
       const adminList = await db
@@ -1880,7 +1859,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       try {
         const targetUser = await db.query.userProfilesTable.findFirst({
@@ -1940,7 +1919,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       if (input.privyDid === ctx.userId) {
         throw new TRPCError({
@@ -1991,7 +1970,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { workspaceId } = input;
 
@@ -2147,7 +2126,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { workspaceId, featureName, grantReference, expiresAt } = input;
 
@@ -2244,7 +2223,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { workspaceId, featureName } = input;
 
@@ -2320,7 +2299,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const features = await db.query.workspaceFeatures.findMany({
         where: eq(workspaceFeatures.workspaceId, input.workspaceId),
@@ -2351,7 +2330,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { featureName, activeOnly } = input;
 
@@ -2401,7 +2380,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { workspaceId } = input;
       const logPayload = {
@@ -2663,7 +2642,7 @@ export const adminRouter = router({
           message: 'User ID not found',
         });
       }
-      await requireAdmin(ctx.userId);
+      await requireAdmin(ctx.userId, ctx.user?.email?.address);
 
       const { workspaceId, featureName } = input;
 
