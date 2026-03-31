@@ -402,7 +402,10 @@ export function SimpleInvoiceForm() {
       return;
     }
 
-    if (!formData.paymentAddress && formData.paymentMethod !== 'fiat') {
+    const isBankTransfer =
+      formData.paymentMethod === 'ach' || formData.paymentMethod === 'sepa';
+
+    if (!formData.paymentAddress && !isBankTransfer) {
       toast.error('Payment address is required for crypto payments.');
       return;
     }
@@ -411,11 +414,11 @@ export function SimpleInvoiceForm() {
 
     // Get payment details from selected method
     const selectedPayment =
-      formData.paymentMethod === 'ach' || formData.paymentMethod === 'sepa'
+      isBankTransfer
         ? {
             value: 'fiat',
             label: 'Bank Transfer',
-            network: 'mainnet',
+            network: 'fiat',
             currency: formData.currency || 'USD',
           }
         : formData.paymentMethod === 'crypto'
@@ -427,6 +430,12 @@ export function SimpleInvoiceForm() {
             }
           : PAYMENT_OPTIONS.find((p) => p.value === formData.paymentMethod);
 
+    const effectiveCurrency =
+      formData.currency || selectedPayment?.currency || 'USD';
+    const effectiveNetwork = isBankTransfer
+      ? 'fiat'
+      : formData.network || selectedPayment?.network || 'mainnet';
+
     // Prepare invoice data
     console.log('DEBUG: Form submission data:', {
       paymentMethod: formData.paymentMethod as
@@ -435,10 +444,7 @@ export function SimpleInvoiceForm() {
         | 'sepa'
         | undefined,
       paymentAddress: formData.paymentAddress,
-      paymentType:
-        formData.paymentMethod === 'ach' || formData.paymentMethod === 'sepa'
-          ? 'fiat'
-          : 'crypto',
+      paymentType: isBankTransfer ? 'fiat' : 'crypto',
       currency: formData.currency,
       network: formData.network,
       cryptoOption: formData.cryptoOption,
@@ -448,8 +454,8 @@ export function SimpleInvoiceForm() {
       meta: { format: 'rnf_invoice', version: '0.0.3' },
       creationDate: new Date(formData.issueDate).toISOString(),
       invoiceNumber: formData.invoiceNumber,
-      currency: formData.currency || selectedPayment?.currency || 'USD',
-      network: formData.network || selectedPayment?.network || 'mainnet',
+      currency: effectiveCurrency,
+      network: effectiveNetwork,
       companyId: selectedSenderProfileId || undefined,
       recipientCompanyId: selectedRecipientProfileId || undefined,
 
@@ -488,16 +494,13 @@ export function SimpleInvoiceForm() {
 
       payment: {
         type: selectedPayment?.network === 'fiat' ? 'fiat' : 'crypto',
-        currency: formData.currency || selectedPayment?.currency || 'USD',
-        network: formData.network || selectedPayment?.network || 'mainnet',
+        currency: effectiveCurrency,
+        network: effectiveNetwork,
         address: formData.paymentAddress,
       },
 
       // Add payment details at top level for display
-      paymentType: (formData.paymentMethod === 'ach' ||
-      formData.paymentMethod === 'sepa'
-        ? 'fiat'
-        : 'crypto') as 'fiat' | 'crypto',
+      paymentType: (isBankTransfer ? 'fiat' : 'crypto') as 'fiat' | 'crypto',
       paymentMethod: formData.paymentMethod as
         | 'crypto'
         | 'ach'
