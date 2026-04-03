@@ -2,7 +2,43 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 
-export function Header() {
+type HeaderProps = {
+  disableSignup?: boolean;
+};
+
+function SignupButton({
+  href,
+  children,
+  className,
+  disabled = false,
+}: {
+  href: string;
+  children: React.ReactNode;
+  className: string;
+  disabled?: boolean;
+}) {
+  if (disabled) {
+    return (
+      <button
+        type="button"
+        disabled
+        aria-disabled="true"
+        title="This product is being deprecated"
+        className={`${className} cursor-not-allowed opacity-50`}
+      >
+        {children}
+      </button>
+    );
+  }
+
+  return (
+    <Link className={className} href={href}>
+      {children}
+    </Link>
+  );
+}
+
+export function Header({ disableSignup = false }: HeaderProps) {
   return (
     <header className="absolute top-0 left-0 right-0 z-50 bg-transparent">
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
@@ -46,18 +82,20 @@ export function Header() {
               Docs
             </Link>
 
-            <Link
+            <SignupButton
               className="px-3 sm:px-4 py-1.5 sm:py-2 border border-[#101010]/20 text-[#101010] hover:text-[#1B29FF] hover:border-[#1B29FF]/40 text-[12px] sm:text-[13px] font-medium rounded-md transition-all"
               href="/signin"
+              disabled={disableSignup}
             >
               Login
-            </Link>
-            <Link
+            </SignupButton>
+            <SignupButton
               className="px-3 sm:px-4 py-1.5 sm:py-2 bg-[#1B29FF] hover:bg-[#1420CC] text-white text-[12px] sm:text-[13px] font-medium rounded-md transition-all"
               href="/agent-login"
+              disabled={disableSignup}
             >
               Agent Login
-            </Link>
+            </SignupButton>
           </nav>
         </div>
       </div>
