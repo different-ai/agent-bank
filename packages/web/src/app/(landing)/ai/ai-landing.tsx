@@ -68,6 +68,31 @@ function CodeLine({
 
 type HeroCodeTab = 'typescript' | 'python' | 'curl';
 
+function DeprecatedSignupButton({
+  children,
+  variant = 'primary',
+}: {
+  children: React.ReactNode;
+  variant?: 'primary' | 'secondary';
+}) {
+  const className =
+    variant === 'primary'
+      ? 'inline-flex items-center px-6 py-3 text-[15px] sm:text-[16px] font-medium text-white bg-[#1B29FF] rounded-md opacity-50 cursor-not-allowed'
+      : 'inline-flex items-center px-6 py-3 text-[15px] sm:text-[16px] font-medium text-[#1B29FF] border border-[#1B29FF] rounded-md opacity-50 cursor-not-allowed';
+
+  return (
+    <button
+      type="button"
+      disabled
+      aria-disabled="true"
+      title="This product is being deprecated"
+      className={className}
+    >
+      {children}
+    </button>
+  );
+}
+
 function HeroCodeTabs() {
   const [tab, setTab] = useState<HeroCodeTab>('typescript');
 
@@ -164,7 +189,7 @@ function HeroCodeTabs() {
 export function AILanding() {
   return (
     <div className="min-h-screen bg-[#F7F7F2]">
-      <Header />
+      <Header disableSignup />
 
       {/* Hero Section */}
       <section className="relative border-b border-[#101010]/10 bg-white/90 overflow-hidden">
@@ -211,27 +236,26 @@ export function AILanding() {
             </div>
           </div>
 
-          <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4 sm:gap-6">
-            <Link
-              className="inline-flex items-center px-6 py-3 text-[15px] sm:text-[16px] font-medium text-white bg-[#1B29FF] hover:bg-[#1420CC] rounded-md transition-colors"
-              href="/signin"
-            >
-              Login
-              <ArrowRight className="ml-2 w-4 h-4" />
-            </Link>
-            <Link
-              className="inline-flex items-center px-6 py-3 text-[15px] sm:text-[16px] font-medium text-[#1B29FF] border border-[#1B29FF] hover:bg-[#1B29FF]/5 rounded-md transition-colors"
-              href="/agent-login"
-            >
-              Agent Login
-              <ArrowRight className="ml-2 w-4 h-4" />
-            </Link>
-            <Link
-              className="inline-flex items-center text-[14px] sm:text-[15px] lg:text-[16px] text-[#101010] hover:text-[#1B29FF] underline decoration-[#101010]/30 underline-offset-[4px] hover:decoration-[#1B29FF] transition-colors"
-              href="https://docs.0.finance/cli/installation"
-            >
-              Install + docs
-            </Link>
+          <div className="mt-8 sm:mt-10 flex flex-col items-start gap-4">
+            <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4 sm:gap-6">
+              <DeprecatedSignupButton>
+                Login
+                <ArrowRight className="ml-2 w-4 h-4" />
+              </DeprecatedSignupButton>
+              <DeprecatedSignupButton variant="secondary">
+                Agent Login
+                <ArrowRight className="ml-2 w-4 h-4" />
+              </DeprecatedSignupButton>
+              <Link
+                className="inline-flex items-center text-[14px] sm:text-[15px] lg:text-[16px] text-[#101010] hover:text-[#1B29FF] underline decoration-[#101010]/30 underline-offset-[4px] hover:decoration-[#1B29FF] transition-colors"
+                href="https://docs.0.finance/cli/installation"
+              >
+                Install + docs
+              </Link>
+            </div>
+            <p className="text-[13px] text-[#101010]/60">
+              This product is being deprecated. New signups are disabled.
+            </p>
           </div>
 
           <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
@@ -302,13 +326,10 @@ export function AILanding() {
               </div>
 
               <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                <Link
-                  href="/agent-login"
-                  className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-white bg-[#1B29FF] hover:bg-[#1420CC] rounded transition-colors"
-                >
+                <DeprecatedSignupButton>
                   Agent Login
                   <ArrowRight className="ml-2 w-4 h-4" />
-                </Link>
+                </DeprecatedSignupButton>
                 <Link
                   href="https://docs.0.finance/cli/reference"
                   className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-[#1B29FF] border border-[#1B29FF] hover:bg-[#1B29FF]/5 rounded transition-colors"
@@ -465,13 +486,16 @@ export function AILanding() {
               <div className="text-[#101010]/55"># 3) Agent continues</div>
               <CodeLine>zero bank transfers list</CodeLine>
               <div className="mt-4">
-                <Link
-                  href="/signin?source=approvals"
-                  className="inline-flex items-center text-[13px] font-medium text-[#1B29FF] hover:text-[#1420CC] transition-colors"
+                <button
+                  type="button"
+                  disabled
+                  aria-disabled="true"
+                  title="This product is being deprecated"
+                  className="inline-flex items-center text-[13px] font-medium text-[#1B29FF] opacity-50 cursor-not-allowed"
                 >
                   Open approvals dashboard
                   <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                </button>
               </div>
             </TerminalCard>
 
@@ -511,13 +535,16 @@ export function AILanding() {
                 </div>
               </div>
               <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                <Link
-                  href="/signin?source=cli"
-                  className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-white bg-[#101010] hover:bg-[#040404] rounded transition-colors"
+                <button
+                  type="button"
+                  disabled
+                  aria-disabled="true"
+                  title="This product is being deprecated"
+                  className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-white bg-[#101010] rounded opacity-50 cursor-not-allowed"
                 >
                   Open dashboard
                   <ArrowRight className="ml-2 w-4 h-4" />
-                </Link>
+                </button>
                 <Link
                   href="https://docs.0.finance/mcp/overview"
                   className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-[#101010] border border-[#101010]/15 hover:bg-white rounded transition-colors"
@@ -549,13 +576,10 @@ export function AILanding() {
             control.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <Link
-              href="/agent-login"
-              className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-white bg-[#1B29FF] hover:bg-[#1420CC] rounded transition-colors"
-            >
+            <DeprecatedSignupButton>
               Agent Login
               <ArrowRight className="ml-2 w-4 h-4" />
-            </Link>
+            </DeprecatedSignupButton>
             <Link
               href="https://docs.0.finance"
               className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-[#101010] border border-[#101010]/15 hover:bg-white rounded transition-colors"
@@ -647,13 +671,10 @@ export function AILanding() {
               https://zerofinance.ai/install | bash
             </div>
             <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <Link
-                href="/agent-login"
-                className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-white bg-[#1B29FF] hover:bg-[#1420CC] rounded transition-colors"
-              >
+              <DeprecatedSignupButton>
                 Agent Login
                 <ArrowRight className="ml-2 w-4 h-4" />
-              </Link>
+              </DeprecatedSignupButton>
               <Link
                 href="https://docs.0.finance/cli/reference"
                 className="inline-flex items-center px-5 py-2.5 text-[14px] font-medium text-[#1B29FF] border border-[#1B29FF] hover:bg-[#1B29FF]/5 rounded transition-colors"
@@ -679,13 +700,10 @@ export function AILanding() {
               Script what you need, keep approvals human, and ship faster.
             </p>
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
-              <Link
-                href="/agent-login"
-                className="inline-flex items-center px-6 py-3 text-[15px] sm:text-[16px] font-medium text-white bg-[#1B29FF] hover:bg-[#1420CC] rounded-md transition-colors"
-              >
+              <DeprecatedSignupButton>
                 Agent Login
                 <ArrowRight className="ml-2 w-4 h-4" />
-              </Link>
+              </DeprecatedSignupButton>
               <Link
                 href="https://docs.0.finance/cli/installation"
                 className="inline-flex items-center text-[14px] sm:text-[15px] lg:text-[16px] text-[#101010] hover:text-[#1B29FF] underline decoration-[#101010]/30 underline-offset-[4px] hover:decoration-[#1B29FF] transition-colors"
